@@ -98,6 +98,7 @@ class SubscriptionAlchemyRepo(SubscriptionRepo, AlchemyGenericRepository[Subscri
         result = self._session.execute(query.where(*conditions)).scalars()
         return [
             Subscription(
+                id=r.id,
                 user_id=r.user_id,
                 user_chat_id=r.user.chat_id,
                 instrument_id=r.instrument_id,

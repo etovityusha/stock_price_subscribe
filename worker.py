@@ -82,7 +82,8 @@ def run_all_tickers_together():
             instruments=instruments
         )
         subscriptions_svc = DefaultSubscriptionsService(
-            uow=uow, subscription_repo=SubscriptionAlchemyRepo(session)
+            uow=uow,
+            subscription_repo=SubscriptionAlchemyRepo(session),
         )
         messages = subscriptions_svc.get_messages_and_update(prices=prices)
         for msg in messages:
