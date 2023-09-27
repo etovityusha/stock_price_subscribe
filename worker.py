@@ -1,0 +1,230 @@
+import decimal
+import logging
+from typing import Callable, Type
+
+from celery import Celery
+from pydantic_settings import BaseSettings
+from sqlalchemy.orm import Session
+
+from models.domain.instument import Instrument
+from repo.instrument import InstrumentAlchemyRepo
+from repo.instrument_price import InstrumentPriceAlchemyRepo
+from repo.subscription import SubscriptionAlchemyRepo
+from services.commands.dto import (
+    CommandAddData,
+    CommandDeleteAllData,
+    CommandDeleteData,
+    CommandMyData,
+    CommandPriceData,
+    CommandStepData,
+    TickerCommandData,
+)
+from services.commands.handler.add import DefaultAddCommandHandler
+from services.commands.handler.delete import DefaultDeleteCommandHandler
+from services.commands.handler.delete_all import DefaultDeleteAllCommandHandler
+from services.commands.handler.my import DefaultMyCommandHandler
+from services.commands.handler.price import DefaultPriceCommandHandler
+from services.commands.handler.step import DefaultStepCommandHandler
+from services.database import session_factory
+from services.instrument import DefaultInstrumentService
+from services.instrument_finder import TinkoffInstrumentFinderService
+from services.price import TinkoffPriceUpdaterService
+from services.subscriptions import DefaultSubscriptionsService
+from services.telegram import Telegram
+from services.uow import AlchemyUoW
+
+
+class CeleryConfig(BaseSettings):
+    SQLALCHEMY_DATABASE_URI: str
+    BROKER_URL: str
+    TINKOFF_TOKEN: str
+    BOT_TOKEN: str
+
+    class Config:
+        env_file = ".env"
+        extra = "ignore"
+
+
+cfg = CeleryConfig()
+
+app = Celery(__name__, broker=cfg.BROKER_URL)
+
+app.conf.beat_schedule = {
+    "run_all_tickers_together": {
+        "task": "run_all_tickers_together",
+        "schedule": 10,
+    },
+}
+app.conf.task_soft_time_limit = 15
+app.conf.task_time_limit = 30
+
+tg_client = Telegram(bot_token=cfg.BOT_TOKEN)
+loggger = logging.getLogger(__name__)
+
+
+@app.task(name="send_message_to_tg")
+def send_message_to_tg(chat_id: int, message: str) -> None:
+    tg_client.send_message(chat_id=chat_id, message=message)
+
+
+@app.task(name="run_all_tickers_together")
+def run_all_tickers_together():
+    with session_factory(cfg.SQLALCHEMY_DATABASE_URI)() as session:
+        instrument_repo = InstrumentAlchemyRepo(session)
+        instruments: list[Instrument] = instrument_repo.find_by()
+        price_updater_svc = TinkoffPriceUpdaterService(
+            cfg.TINKOFF_TOKEN,
+            uow=AlchemyUoW(session),
+            instrument_prices_repo=InstrumentPriceAlchemyRepo(session),
+        )
+        prices: list[tuple[Instrument, decimal.Decimal, decimal.Decimal]] = price_updater_svc.update_instruments_prices(
+            instruments=instruments
+        )
+        subscriptions_svc = DefaultSubscriptionsService(
+            uow=AlchemyUoW(session), subscription_repo=SubscriptionAlchemyRepo(session)
+        )
+        messages = subscriptions_svc.get_messages_and_update(prices=prices)
+        for msg in messages:
+            send_message_to_tg.apply_async(
+                kwargs=dict(
+                    chat_id=msg.user_chat_id,
+                    message=msg.message,
+                )
+            )
+
+
+def get_price_cmd_handler(session: Session) -> DefaultPriceCommandHandler:
+    return DefaultPriceCommandHandler(
+        instrument_repo=InstrumentAlchemyRepo(session),
+        instrument_price_repo=InstrumentPriceAlchemyRepo(session),
+    )
+
+
+def get_instrument_svc(session: Session) -> DefaultInstrumentService:
+    return DefaultInstrumentService(
+        finders=[TinkoffInstrumentFinderService(token=cfg.TINKOFF_TOKEN)],
+        uow=AlchemyUoW(session),
+        instrument_repo=InstrumentAlchemyRepo(session),
+    )
+
+
+def get_add_cmd_handler(session: Session) -> DefaultAddCommandHandler:
+    return DefaultAddCommandHandler(
+        instrument_svc=get_instrument_svc(session),
+        uow=AlchemyUoW(session),
+        subscription_repo=SubscriptionAlchemyRepo(session),
+    )
+
+
+def get_delete_cmd_handler(session: Session) -> DefaultDeleteCommandHandler:
+    return DefaultDeleteCommandHandler(
+        instrument_svc=get_instrument_svc(session),
+        uow=AlchemyUoW(session),
+        subscription_repo=SubscriptionAlchemyRepo(session),
+    )
+
+
+def get_step_cmd_handler(session: Session) -> DefaultStepCommandHandler:
+    return DefaultStepCommandHandler(
+        instrument_svc=get_instrument_svc(session),
+        uow=AlchemyUoW(session),
+        subscription_repo=SubscriptionAlchemyRepo(session),
+    )
+
+
+def get_delete_all_cmd_handler(session: Session) -> DefaultDeleteAllCommandHandler:
+    return DefaultDeleteAllCommandHandler(
+        uow=AlchemyUoW(session),
+        subscription_repo=SubscriptionAlchemyRepo(session),
+    )
+
+
+def get_my_cmd_handler(session: Session) -> DefaultMyCommandHandler:
+    return DefaultMyCommandHandler(
+        subscription_repo=SubscriptionAlchemyRepo(session),
+    )
+
+
+def list_of_decimals_to_string(lst: list[decimal.Decimal]) -> str:
+    return ", ".join([str(num) for num in lst])
+
+
+def handle_cmd(
+    get_cmd_handler: Callable,
+    user_id: int,
+    chat_id: int,
+    message_id: int,
+    command_model: Type[TickerCommandData],
+    **kwargs,
+) -> None:
+    with session_factory(cfg.SQLALCHEMY_DATABASE_URI)() as session:
+        svc = get_cmd_handler(session)
+        result = svc.handle(user_id, command_model.model_validate(kwargs))
+        response = []
+        if result.added:
+            response.append(f"OK: {list_of_decimals_to_string(result.added)}")
+        if result.errors:
+            response.append(f"ALREADY EXIST: {list_of_decimals_to_string(result.errors)}")
+        tg_client.send_message(chat_id=chat_id, reply_to_msg_id=message_id, message="\n".join(response))
+
+
+@app.task(name="handle_add_cmd")
+def handle_add_cmd(user_id: int, chat_id: int, message_id: int, **kwargs):
+    handle_cmd(get_add_cmd_handler, user_id, chat_id, message_id, CommandAddData, **kwargs)
+
+
+@app.task(name="handle_step_cmd")
+def handle_step_cmd(user_id: int, chat_id: int, message_id: int, **kwargs):
+    handle_cmd(get_step_cmd_handler, user_id, chat_id, message_id, CommandStepData, **kwargs)
+
+
+@app.task(name="handle_delete_cmd")
+def handle_delete_cmd(user_id: int, chat_id: int, message_id: int, **kwargs):
+    with session_factory(cfg.SQLALCHEMY_DATABASE_URI)() as session:
+        svc = get_delete_cmd_handler(session)
+        result = svc.handle(user_id, CommandDeleteData.model_validate(kwargs))
+        tg_client.send_message(
+            chat_id=chat_id,
+            reply_to_msg_id=message_id,
+            message=f"DELETED {result.deleted_count} ROWS",
+        )
+
+
+@app.task(name="handle_price_cmd")
+def handle_price_cmd(user_id: int, chat_id: int, message_id: int, **kwargs):
+    with session_factory(cfg.SQLALCHEMY_DATABASE_URI)() as session:
+        svc = get_price_cmd_handler(session)
+        result = svc.handle(user_id, CommandPriceData.model_validate(kwargs))
+        tg_client.send_message(
+            chat_id=chat_id,
+            reply_to_msg_id=message_id,
+            message=f"{result.ticker} PRICE = {result.price}",
+        )
+
+
+@app.task(name="handle_delete_all_cmd")
+def handle_delete_all_cmd(user_id: int, chat_id: int, message_id: int, **kwargs) -> None:
+    with session_factory(cfg.SQLALCHEMY_DATABASE_URI)() as session:
+        svc = get_delete_all_cmd_handler(session)
+        result = svc.handle(user_id, CommandDeleteAllData.model_validate(kwargs))
+        tg_client.send_message(
+            chat_id=chat_id,
+            reply_to_msg_id=message_id,
+            message=f"DELETED {result.deleted_count} ROWS",
+        )
+
+
+@app.task(name="handle_my_cmd")
+def handle_my_cmd(user_id: int, chat_id: int, message_id: int, **kwargs) -> None:
+    with session_factory(cfg.SQLALCHEMY_DATABASE_URI)() as session:
+        svc = get_my_cmd_handler(session)
+        result = svc.handle(user_id, CommandMyData.model_validate(kwargs))
+        if result.subscriptions:
+            message = "\n".join(f"{ticker}: {prices}" for ticker, prices in result.subscriptions.items())
+        else:
+            message = "You don't have active subscriptions"
+        tg_client.send_message(
+            chat_id=chat_id,
+            reply_to_msg_id=message_id,
+            message=message,
+        )
