@@ -60,6 +60,7 @@ class DefaultSubscriptionsService(SubscriptionsService):
                         is_active=True,
                         user_id=sub.user_id,
                         instrument_id=sub.instrument_id,
+                        type_=SubscriptionTypeEnum.CROSSING,
                         update_data={"crossing_disabled": False},
                     )
                     self._subscription_repo.update_by(
@@ -67,5 +68,5 @@ class DefaultSubscriptionsService(SubscriptionsService):
                         update_data={"crossing_disabled": True},
                     )
                     sub.crossing_disabled = True
-            self._uow.commit()
+        self._uow.commit()
         return result

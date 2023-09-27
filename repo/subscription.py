@@ -23,6 +23,7 @@ class SubscriptionRepo(abc.ABC):
         price_gte: decimal.Decimal | None = None,
         price_lt: decimal.Decimal | None = None,
         crossing_disabled: bool | None = None,
+        type_: SubscriptionTypeEnum | None = None,
     ) -> list[Subscription]:
         pass
 
@@ -58,6 +59,7 @@ class SubscriptionRepo(abc.ABC):
         price_lt: decimal.Decimal | None = None,
         is_active: bool | None = None,
         crossing_disabled: bool | None = None,
+        type_: SubscriptionTypeEnum | None = None,
     ) -> int:
         pass
 
@@ -76,6 +78,7 @@ class SubscriptionAlchemyRepo(SubscriptionRepo, AlchemyGenericRepository[Subscri
         price_lt: decimal.Decimal | None = None,
         is_active: bool | None = None,
         crossing_disabled: bool | None = None,
+        type_: SubscriptionTypeEnum | None = None,
     ) -> list[Subscription]:
         query = select(SubscriptionORM).options(
             joinedload(SubscriptionORM.instrument),
@@ -90,6 +93,7 @@ class SubscriptionAlchemyRepo(SubscriptionRepo, AlchemyGenericRepository[Subscri
             price_lt=price_lt,
             is_active=is_active,
             crossing_disabled=crossing_disabled,
+            type_=type_,
         )
         result = self._session.execute(query.where(*conditions)).scalars()
         return [
@@ -154,6 +158,7 @@ class SubscriptionAlchemyRepo(SubscriptionRepo, AlchemyGenericRepository[Subscri
         price_lt: decimal.Decimal | None = None,
         is_active: bool | None = None,
         crossing_disabled: bool | None = None,
+        type_: SubscriptionTypeEnum | None = None,
     ) -> int:
         conditions = self._find_conditions(
             id_=id_,
@@ -164,8 +169,10 @@ class SubscriptionAlchemyRepo(SubscriptionRepo, AlchemyGenericRepository[Subscri
             price_lt=price_lt,
             is_active=is_active,
             crossing_disabled=crossing_disabled,
+            type_=type_,
         )
         qry = self._session.query(SubscriptionORM)
+        print(conditions)
         if conditions:
             qry = qry.filter(*conditions)
         return qry.update(update_data)
@@ -180,6 +187,7 @@ class SubscriptionAlchemyRepo(SubscriptionRepo, AlchemyGenericRepository[Subscri
         price_lt: decimal.Decimal | None = None,
         is_active: bool | None = None,
         crossing_disabled: bool | None = None,
+        type_: SubscriptionTypeEnum | None = None,
     ) -> list[bool]:
         conditions = []
         if id_ is not None:
@@ -198,4 +206,6 @@ class SubscriptionAlchemyRepo(SubscriptionRepo, AlchemyGenericRepository[Subscri
             conditions.append(SubscriptionORM.is_active.is_(is_active))
         if crossing_disabled is not None:
             conditions.append(SubscriptionORM.crossing_disabled.is_(crossing_disabled))
+        if type_ is not None:
+            conditions.append(SubscriptionORM.type == type_)
         return conditions

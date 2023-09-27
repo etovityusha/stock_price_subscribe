@@ -72,16 +72,17 @@ def run_all_tickers_together():
     with session_factory(cfg.SQLALCHEMY_DATABASE_URI)() as session:
         instrument_repo = InstrumentAlchemyRepo(session)
         instruments: list[Instrument] = instrument_repo.find_by()
+        uow = AlchemyUoW(session)
         price_updater_svc = TinkoffPriceUpdaterService(
             cfg.TINKOFF_TOKEN,
-            uow=AlchemyUoW(session),
+            uow=uow,
             instrument_prices_repo=InstrumentPriceAlchemyRepo(session),
         )
         prices: list[tuple[Instrument, decimal.Decimal, decimal.Decimal]] = price_updater_svc.update_instruments_prices(
             instruments=instruments
         )
         subscriptions_svc = DefaultSubscriptionsService(
-            uow=AlchemyUoW(session), subscription_repo=SubscriptionAlchemyRepo(session)
+            uow=uow, subscription_repo=SubscriptionAlchemyRepo(session)
         )
         messages = subscriptions_svc.get_messages_and_update(prices=prices)
         for msg in messages:
