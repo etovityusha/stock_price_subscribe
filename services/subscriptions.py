@@ -67,6 +67,5 @@ class DefaultSubscriptionsService(SubscriptionsService):
                         id_=sub.identity,
                         update_data={"crossing_disabled": True},
                     )
-                    sub.crossing_disabled = True
         self._uow.commit()
         return result
