@@ -14,6 +14,7 @@ class SubscriptionTypeEnum(str, enum.Enum):
 class InstrumentTypeEnum(str, enum.Enum):
     SHARE = "SHARE"
     BOND = "BOND"
+    FUTURES = "FUTURES"
 
 
 class CommandTypeEnum(str, enum.Enum):
