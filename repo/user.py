@@ -9,7 +9,7 @@ from models.orm.user import UserORM
 from repo.base import AlchemyGenericRepository, GenericRepository
 
 
-class UserRepo(abc.ABC, GenericRepository[User]):
+class UserRepo(GenericRepository[User], abc.ABC):
     @abc.abstractmethod
     def create(self, chat_id: int, username: str | None, phone: str | None) -> None:
         pass
