@@ -30,4 +30,7 @@ class AlchemyGenericRepository(GenericRepository[DomainModel]):
 
     def get_by_id(self, id_: int) -> DomainModel | None:
         stmt = self._construct_get_stmt(id_)
-        return self._domain_model.model_validate(self._session.execute(stmt).first())
+        result = self._session.execute(stmt).first()
+        if not result:
+            return None
+        return self._domain_model.model_validate(result[0])
