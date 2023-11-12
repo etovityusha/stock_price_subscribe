@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
 from bot.keyboard import get_keyboard
+from enums import LocaleEnum
 from models.domain.user import User
 from repo.user import UserAlchemyRepo
 from services.commands.dto import (
@@ -20,6 +21,7 @@ from services.commands.dto import (
 )
 from services.commands.parser.default import DefaultCommandParserService
 from services.database import session_factory
+from services.message import EnLocaleMessageBuilder, get_locale_msg_builder
 from services.registration import AlreadyRegisteredError, TelegramBotRegistrationService
 from services.uow import AlchemyUoW
 from services.user import DefaultUserService
@@ -104,6 +106,7 @@ def msg_context(msg_type: MessageTypeEnum = MessageTypeEnum.TEXT):
 
 
 async def process_start_command(message: types.Message) -> None:
+    msg_builder = EnLocaleMessageBuilder()
     with get_db_session() as db_session:
         svc = TelegramBotRegistrationService(uow=AlchemyUoW(db_session), user_repo=UserAlchemyRepo(db_session))
         try:
@@ -112,58 +115,29 @@ async def process_start_command(message: types.Message) -> None:
                 username=message.from_user.username,
                 phone=None,
             )
-            reply_text = "Добро пожаловать"
+            reply_text = msg_builder.welcome_new_user_msg()
         except AlreadyRegisteredError:
-            reply_text = "С возвращением"
+            reply_text = msg_builder.welcome_old_user_msg()
         await message.reply(text=reply_text, reply_markup=KEYBOARD)
 
 
-async def cmd_help(message: types.Message) -> None:
-    await message.answer(
-        """
-Примеры команд:
-
-*ADD CROSSING GAZP 100 105*
-добавить подписку на GAZP на цены 100 и 105, уведомления будут приходить при пересечении соседних уровней
-
-*STEP ALWAYS GAZP 100 200 5*
-добавить подписку на GAZP от 100 до 200 с шагом 5, уведомления будут приходить каждый раз
-
-*DELETE GAZP 100*
-удалить подписку на GAZP на цену 100
-
-*DELETE GAZP*
-удалить все подписки на GAZP
-
-*DELETE_ALL*
-удалить все мои подписки
-
-*PRICE GAZP*
-получить текущую цену GAZP
-
-*MY*
-список моих подписок
-
-*/help*
-получить справку о командах
-    """,
-        reply_markup=KEYBOARD,
-        parse_mode="Markdown",
-    )
+@msg_context(msg_type=MessageTypeEnum.TEXT)
+async def cmd_help(ctx: MessageContext) -> None:
+    msg_builder = get_locale_msg_builder(ctx.user.locale)
+    await ctx.message.answer(msg_builder.help_msg())
 
 
-async def process_custom_command(user_id: int, message: types.Message, text: str, type_task: dict):
+async def process_custom_command(
+    user_id: int, user_locale: LocaleEnum, message: types.Message, text: str, type_task: dict
+) -> None:
     logger.info({"user_id": user_id, "command": text})
     message_id = message.message_id
-
     try:
         parser = DefaultCommandParserService()
         parser_result = parser.get_command_data(text)
-    except Exception as e:
-        await message.reply(
-            f"Error: {type(e).__name__}. " f"Contact with bot [owner](https://t.me/{cfg.BOT_OWNER_USERNAME})",
-            parse_mode="Markdown",
-        )
+    except Exception:
+        msg_builder = get_locale_msg_builder(user_locale)
+        await message.reply(msg_builder.parse_error_msg(cfg.BOT_OWNER_USERNAME), parse_mode="Markdown")
         return
     logger.info({"user_id": user_id, "command": text, "parsed": True})
     type_task[type(parser_result)].apply_async(
@@ -180,6 +154,7 @@ async def process_custom_command(user_id: int, message: types.Message, text: str
 async def web_app(ctx: MessageContext) -> None:
     await process_custom_command(
         user_id=ctx.user.identity,
+        user_locale=ctx.user.locale,
         message=ctx.message,
         text=ctx.text,
         type_task=type_task_map,
@@ -190,6 +165,7 @@ async def web_app(ctx: MessageContext) -> None:
 async def handle_commands(ctx: MessageContext) -> None:
     await process_custom_command(
         user_id=ctx.user.identity,
+        user_locale=ctx.user.locale,
         message=ctx.message,
         text=ctx.text,
         type_task=type_task_map,

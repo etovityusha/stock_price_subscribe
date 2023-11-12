@@ -24,3 +24,8 @@ class CommandTypeEnum(str, enum.Enum):
     DELETE = "DELETE"
     DELETE_ALL = "DELETE_ALL"
     MY = "MY"
+
+
+class LocaleEnum(str, enum.Enum):
+    RU = "RU"
+    EN = "EN"
