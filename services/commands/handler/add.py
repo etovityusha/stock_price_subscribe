@@ -12,6 +12,7 @@ from services.uow import UoW
 class AddCommandResult(BaseModel):
     added: list[decimal.Decimal]
     errors: list[decimal.Decimal]
+    precision: int
 
 
 class AddCommandHandler(abc.ABC):
@@ -53,4 +54,4 @@ class DefaultAddCommandHandler(AddCommandHandler):
             else:
                 errors.append(rouded_price)
         self._uow.commit()
-        return AddCommandResult(added=added, errors=errors)
+        return AddCommandResult(added=added, errors=errors, precision=instrument.precision)

@@ -3,6 +3,7 @@ import decimal
 from typing import Generic, TypeVar
 
 from enums import LocaleEnum
+from services.commands.handler.add import AddCommandResult
 from services.commands.handler.delete import DeleteCommandResult
 from services.commands.handler.my import MyCommandResult
 from services.commands.handler.price import PriceCommandResult
@@ -37,6 +38,10 @@ class LocaleMessageBuilder(abc.ABC, Generic[L]):
 
     @abc.abstractmethod
     def my_cmd_msg(self, data: MyCommandResult) -> str:
+        pass
+
+    @abc.abstractmethod
+    def add_cmd_msg(self, data: AddCommandResult) -> str:
         pass
 
     @classmethod
@@ -98,6 +103,20 @@ class RuLocaleMessageBuilder(LocaleMessageBuilder[LocaleEnum.RU]):
             for ticker, prices in data.subscriptions.items()
         )
 
+    def add_cmd_msg(self, data: AddCommandResult) -> str:
+        result = []
+        if data.added:
+            result.append(
+                f"Успешно добавлено: "
+                f"{', '.join(self.format_price(price=p, precision=data.precision) for p in data.added)}"
+            )
+        if data.errors:
+            result.append(
+                f"Ошибка (уже существовали): "
+                f"{', '.join(self.format_price(price=p, precision=data.precision) for p in data.errors)}"
+            )
+        return "\n".join(result)
+
 
 class EnLocaleMessageBuilder(LocaleMessageBuilder[LocaleEnum.EN]):
     def welcome_new_user_msg(self) -> str:
@@ -151,6 +170,18 @@ get command help
             f"{ticker}: {', '.join(self.format_price(p) for p in prices)}"
             for ticker, prices in data.subscriptions.items()
         )
+
+    def add_cmd_msg(self, data: AddCommandResult) -> str:
+        result = []
+        if data.added:
+            result.append(
+                f"OK: {', '.join(self.format_price(price=p, precision=data.precision) for p in data.added)}"
+            )
+        if data.errors:
+            result.append(
+                f"ERROR: {', '.join(self.format_price(price=p, precision=data.precision) for p in data.errors)}"
+            )
+        return "\n".join(result)
 
 
 def get_locale_msg_builder(locale: LocaleEnum) -> LocaleMessageBuilder:

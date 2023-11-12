@@ -7,9 +7,11 @@ from pydantic_settings import BaseSettings
 from sqlalchemy.orm import Session
 
 from models.domain.instument import Instrument
+from models.domain.user import User
 from repo.instrument import InstrumentAlchemyRepo
 from repo.instrument_price import InstrumentPriceAlchemyRepo
 from repo.subscription import SubscriptionAlchemyRepo
+from repo.user import UserRepo, UserAlchemyRepo
 from services.commands.dto import (
     CommandAddData,
     CommandDeleteAllData,
@@ -28,6 +30,7 @@ from services.commands.handler.step import DefaultStepCommandHandler
 from services.database import session_factory
 from services.instrument import DefaultInstrumentService
 from services.instrument_finder import TinkoffInstrumentFinderService
+from services.message import get_locale_msg_builder
 from services.price import TinkoffPriceUpdaterService
 from services.subscriptions import DefaultSubscriptionsService
 from services.telegram import Telegram
@@ -147,8 +150,8 @@ def get_my_cmd_handler(session: Session) -> DefaultMyCommandHandler:
     )
 
 
-def list_of_decimals_to_string(lst: list[decimal.Decimal]) -> str:
-    return ", ".join([str(num) for num in lst])
+def get_user_repo(session: Session) -> UserRepo:
+    return UserAlchemyRepo(session)
 
 
 def handle_cmd(
@@ -162,12 +165,9 @@ def handle_cmd(
     with session_factory(cfg.SQLALCHEMY_DATABASE_URI)() as session:
         svc = get_cmd_handler(session)
         result = svc.handle(user_id, command_model.model_validate(kwargs))
-        response = []
-        if result.added:
-            response.append(f"OK: {list_of_decimals_to_string(result.added)}")
-        if result.errors:
-            response.append(f"ALREADY EXIST: {list_of_decimals_to_string(result.errors)}")
-        tg_client.send_message(chat_id=chat_id, reply_to_msg_id=message_id, message="\n".join(response))
+        user: User = get_user_repo(session).get_by_id(user_id)
+        response = get_locale_msg_builder(user.locale).add_cmd_msg(result)
+        tg_client.send_message(chat_id=chat_id, reply_to_msg_id=message_id, message=response)
 
 
 @app.task(name="handle_add_cmd")
@@ -185,10 +185,11 @@ def handle_delete_cmd(user_id: int, chat_id: int, message_id: int, **kwargs):
     with session_factory(cfg.SQLALCHEMY_DATABASE_URI)() as session:
         svc = get_delete_cmd_handler(session)
         result = svc.handle(user_id, CommandDeleteData.model_validate(kwargs))
+        user: User = get_user_repo(session).get_by_id(user_id)
         tg_client.send_message(
             chat_id=chat_id,
             reply_to_msg_id=message_id,
-            message=f"DELETED {result.deleted_count} ROWS",
+            message=get_locale_msg_builder(user.locale).delete_cmd_msg(result),
         )
 
 
@@ -197,10 +198,11 @@ def handle_price_cmd(user_id: int, chat_id: int, message_id: int, **kwargs):
     with session_factory(cfg.SQLALCHEMY_DATABASE_URI)() as session:
         svc = get_price_cmd_handler(session)
         result = svc.handle(user_id, CommandPriceData.model_validate(kwargs))
+        user: User = get_user_repo(session).get_by_id(user_id)
         tg_client.send_message(
             chat_id=chat_id,
             reply_to_msg_id=message_id,
-            message=f"{result.ticker} PRICE = {result.price}",
+            message=get_locale_msg_builder(user.locale).price_cmd_msg(result),
         )
 
 
@@ -209,10 +211,11 @@ def handle_delete_all_cmd(user_id: int, chat_id: int, message_id: int, **kwargs)
     with session_factory(cfg.SQLALCHEMY_DATABASE_URI)() as session:
         svc = get_delete_all_cmd_handler(session)
         result = svc.handle(user_id, CommandDeleteAllData.model_validate(kwargs))
+        user: User = get_user_repo(session).get_by_id(user_id)
         tg_client.send_message(
             chat_id=chat_id,
             reply_to_msg_id=message_id,
-            message=f"DELETED {result.deleted_count} ROWS",
+            message=get_locale_msg_builder(user.locale).delete_cmd_msg(result),
         )
 
 
@@ -221,12 +224,9 @@ def handle_my_cmd(user_id: int, chat_id: int, message_id: int, **kwargs) -> None
     with session_factory(cfg.SQLALCHEMY_DATABASE_URI)() as session:
         svc = get_my_cmd_handler(session)
         result = svc.handle(user_id, CommandMyData.model_validate(kwargs))
-        if result.subscriptions:
-            message = "\n".join(f"{ticker}: {prices}" for ticker, prices in result.subscriptions.items())
-        else:
-            message = "You don't have active subscriptions"
+        user: User = get_user_repo(session).get_by_id(user_id)
         tg_client.send_message(
             chat_id=chat_id,
             reply_to_msg_id=message_id,
-            message=message,
+            message=get_locale_msg_builder(user.locale).my_cmd_msg(result),
         )

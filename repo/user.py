@@ -6,10 +6,10 @@ from sqlalchemy.orm import Session
 
 from models.domain.user import User
 from models.orm.user import UserORM
-from repo.base import AlchemyGenericRepository
+from repo.base import AlchemyGenericRepository, GenericRepository
 
 
-class UserRepo(abc.ABC):
+class UserRepo(abc.ABC, GenericRepository[User]):
     @abc.abstractmethod
     def create(self, chat_id: int, username: str | None, phone: str | None) -> None:
         pass
