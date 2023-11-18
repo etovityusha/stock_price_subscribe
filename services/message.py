@@ -7,6 +7,7 @@ from services.commands.handler.add import AddCommandResult
 from services.commands.handler.delete import DeleteCommandResult
 from services.commands.handler.my import MyCommandResult
 from services.commands.handler.price import PriceCommandResult
+from services.commands.handler.step import StepCommandResult
 
 L = TypeVar("L", bound=LocaleEnum)
 
@@ -41,7 +42,7 @@ class LocaleMessageBuilder(abc.ABC, Generic[L]):
         pass
 
     @abc.abstractmethod
-    def add_cmd_msg(self, data: AddCommandResult) -> str:
+    def add_cmd_msg(self, data: AddCommandResult | StepCommandResult) -> str:
         pass
 
     @classmethod
@@ -174,9 +175,7 @@ get command help
     def add_cmd_msg(self, data: AddCommandResult) -> str:
         result = []
         if data.added:
-            result.append(
-                f"OK: {', '.join(self.format_price(price=p, precision=data.precision) for p in data.added)}"
-            )
+            result.append(f"OK: {', '.join(self.format_price(price=p, precision=data.precision) for p in data.added)}")
         if data.errors:
             result.append(
                 f"ERROR: {', '.join(self.format_price(price=p, precision=data.precision) for p in data.errors)}"

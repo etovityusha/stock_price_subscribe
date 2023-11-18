@@ -13,6 +13,7 @@ from services.uow import UoW
 class StepCommandResult(BaseModel):
     added: list[decimal.Decimal]
     errors: list[decimal.Decimal]
+    precision: int
 
 
 class StepCommandHandler(abc.ABC):
