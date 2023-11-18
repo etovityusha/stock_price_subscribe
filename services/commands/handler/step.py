@@ -56,7 +56,7 @@ class DefaultStepCommandHandler(StepCommandHandler):
                 errors.append(price)
 
         self._uow.commit()
-        return StepCommandResult(added=added, errors=errors)
+        return StepCommandResult(added=added, errors=errors, precision=instrument.precision)
 
     @classmethod
     def _generate_prices(
