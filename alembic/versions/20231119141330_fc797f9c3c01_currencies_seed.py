@@ -103,20 +103,6 @@ currencies = [
         "type": "CURRENCY",
         "precision": 2,
     },
-    {
-        "ticker": "SLVRUB",
-        "isin": "",
-        "figi": "BBG000VHQTD1",
-        "type": "CURRENCY",
-        "precision": 2,
-    },
-    {
-        "ticker": "EURRUB",
-        "isin": "",
-        "figi": "BBG0013HJJ31",
-        "type": "CURRENCY",
-        "precision": 4,
-    },
 ]
 
 
