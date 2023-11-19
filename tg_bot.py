@@ -128,7 +128,11 @@ async def cmd_help(ctx: MessageContext) -> None:
 
 
 async def process_custom_command(
-    user_id: int, user_locale: LocaleEnum, message: types.Message, text: str, type_task: dict
+    user_id: int,
+    user_locale: LocaleEnum,
+    message: types.Message,
+    text: str,
+    type_task: dict,
 ) -> None:
     logger.info({"user_id": user_id, "command": text})
     message_id = message.message_id

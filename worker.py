@@ -31,7 +31,8 @@ from services.database import session_factory
 from services.instrument import DefaultInstrumentService
 from services.instrument_finder import TinkoffInstrumentFinderService
 from services.message import get_locale_msg_builder
-from services.price import TinkoffPriceUpdaterService
+from services.price import TinkoffPriceService
+from services.price_updater import PriceUpdaterServiceImpl
 from services.subscriptions import DefaultSubscriptionsService
 from services.telegram import Telegram
 from services.uow import AlchemyUoW
@@ -76,17 +77,17 @@ def run_all_tickers_together():
         instrument_repo = InstrumentAlchemyRepo(session)
         instruments: list[Instrument] = instrument_repo.find_by()
         uow = AlchemyUoW(session)
-        price_updater_svc = TinkoffPriceUpdaterService(
+        prices_svc = TinkoffPriceService(
             cfg.TINKOFF_TOKEN,
+        )
+        prices_data = prices_svc.get_prices(instruments=instruments)
+        price_updater_svc = PriceUpdaterServiceImpl(
             uow=uow,
             instrument_prices_repo=InstrumentPriceAlchemyRepo(session),
         )
-        prices: list[tuple[Instrument, decimal.Decimal, decimal.Decimal]] = price_updater_svc.update_instruments_prices(
-            instruments=instruments
-        )
+        prices = price_updater_svc.update_prices(prices_data)
         subscriptions_svc = DefaultSubscriptionsService(
-            uow=uow,
-            subscription_repo=SubscriptionAlchemyRepo(session),
+            uow=uow, subscription_repo=SubscriptionAlchemyRepo(session), user_repo=UserAlchemyRepo(session)
         )
         messages = subscriptions_svc.get_messages_and_update(prices=prices)
         for msg in messages:

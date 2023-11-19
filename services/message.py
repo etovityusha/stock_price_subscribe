@@ -13,6 +13,9 @@ L = TypeVar("L", bound=LocaleEnum)
 
 
 class LocaleMessageBuilder(abc.ABC, Generic[L]):
+    UP_SYMBOL = "⬆️"
+    DOWN_SYMBOL = "⬇️"
+
     @abc.abstractmethod
     def welcome_new_user_msg(self) -> str:
         pass
@@ -45,10 +48,22 @@ class LocaleMessageBuilder(abc.ABC, Generic[L]):
     def add_cmd_msg(self, data: AddCommandResult | StepCommandResult) -> str:
         pass
 
+    @abc.abstractmethod
+    def sub_msg(
+        self,
+        instrument_ticker: str,
+        instrument_precision: int,
+        sub_price: decimal.Decimal,
+        current_price: decimal.Decimal,
+        old_price: decimal.Decimal,
+    ) -> str:
+        pass
+
     @classmethod
     def format_price(cls, price: decimal.Decimal, precision: int = 2) -> str:
-        rounded_price = price.quantize(decimal.Decimal("1." + "0" * precision))
-        return str(rounded_price)
+        rounding = "0." + "9" * precision
+        rounded_price = price.quantize(decimal.Decimal(rounding))
+        return str(rounded_price).rstrip("0").rstrip(".") if "." in str(rounded_price) else str(int(rounded_price))
 
 
 class RuLocaleMessageBuilder(LocaleMessageBuilder[LocaleEnum.RU]):
@@ -118,6 +133,20 @@ class RuLocaleMessageBuilder(LocaleMessageBuilder[LocaleEnum.RU]):
             )
         return "\n".join(result)
 
+    def sub_msg(
+        self,
+        instrument_ticker: str,
+        instrument_precision: int,
+        sub_price: decimal.Decimal,
+        current_price: decimal.Decimal,
+        old_price: decimal.Decimal,
+    ) -> str:
+        arrow_symbol = self.UP_SYMBOL if current_price > old_price else self.DOWN_SYMBOL
+        return (
+            f"Цена на {instrument_ticker} составляет {self.format_price(current_price, instrument_precision)}\n"
+            f"{arrow_symbol} Сработала подписка на {self.format_price(sub_price, instrument_precision)}"
+        )
+
 
 class EnLocaleMessageBuilder(LocaleMessageBuilder[LocaleEnum.EN]):
     def welcome_new_user_msg(self) -> str:
@@ -181,6 +210,20 @@ get command help
                 f"ERROR: {', '.join(self.format_price(price=p, precision=data.precision) for p in data.errors)}"
             )
         return "\n".join(result)
+
+    def sub_msg(
+        self,
+        instrument_ticker: str,
+        instrument_precision: int,
+        sub_price: decimal.Decimal,
+        current_price: decimal.Decimal,
+        old_price: decimal.Decimal,
+    ) -> str:
+        arrow_symbol = self.UP_SYMBOL if current_price > old_price else self.DOWN_SYMBOL
+        return (
+            f"The price of {instrument_ticker} is {self.format_price(current_price, instrument_precision)}\n"
+            f"{arrow_symbol} Subscription triggered at {self.format_price(sub_price, instrument_precision)}"
+        )
 
 
 def get_locale_msg_builder(locale: LocaleEnum) -> LocaleMessageBuilder:

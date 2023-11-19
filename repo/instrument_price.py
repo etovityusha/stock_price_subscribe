@@ -1,6 +1,7 @@
 import abc
 import decimal
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from models.domain.instrument_price import InstrumentPrice
@@ -16,6 +17,10 @@ class InstrumentPriceRepo(abc.ABC):
 
     @abc.abstractmethod
     def get_by_instrument_id(self, instrument_id: int) -> InstrumentPrice | None:
+        pass
+
+    @abc.abstractmethod
+    def find_by(self, instrument_id_in: list[int]) -> list[InstrumentPrice]:
         pass
 
 
@@ -44,3 +49,8 @@ class InstrumentPriceAlchemyRepo(InstrumentPriceRepo, AlchemyGenericRepository[I
             .filter(InstrumentPriceORM.instrument_id == instrument_id)
             .one_or_none()
         )
+
+    def find_by(self, instrument_id_in: list[int]) -> list[InstrumentPrice]:
+        stmt = select(InstrumentPriceORM).where(InstrumentPriceORM.instrument_id.in_(instrument_id_in))
+        orm_objects = self._session.execute(stmt)
+        return [InstrumentPrice.model_validate(orm_object) for orm_object in orm_objects.scalars().all()]
