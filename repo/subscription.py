@@ -101,6 +101,7 @@ class SubscriptionAlchemyRepo(SubscriptionRepo, AlchemyGenericRepository[Subscri
                 id=r.id,
                 user_id=r.user_id,
                 user_chat_id=r.user.chat_id,
+                user_locale=r.user.locale,
                 instrument_id=r.instrument_id,
                 instrument_ticker=r.instrument.ticker,
                 instrument_precision=r.instrument.precision,
@@ -173,7 +174,6 @@ class SubscriptionAlchemyRepo(SubscriptionRepo, AlchemyGenericRepository[Subscri
             type_=type_,
         )
         qry = self._session.query(SubscriptionORM)
-        print(conditions)
         if conditions:
             qry = qry.filter(*conditions)
         return qry.update(update_data)
