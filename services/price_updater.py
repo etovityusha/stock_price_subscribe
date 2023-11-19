@@ -39,7 +39,7 @@ class PriceUpdaterServiceImpl(PriceUpdaterService):
             UpdatedPriceResult(
                 instrument=row.instrument,
                 new_price=row.new_price,
-                old_price=current_prices_map[row.instrument.identity],
+                old_price=current_prices_map.get(row.instrument.identity),
             )
             for row in data
         ]
