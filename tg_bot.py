@@ -1,7 +1,7 @@
 import enum
 import logging
 from contextlib import contextmanager
-from typing import Callable
+from typing import Callable, Coroutine, List
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
@@ -70,15 +70,15 @@ type_task_map = {
 KEYBOARD = get_keyboard(web_app_url=cfg.WEBAPP_PAGE_URL)
 
 
-def send_parsing_error_message_to_bot_owner(config: BotConfig, message: types.Message) -> None:
-    bot.send_message(
+async def send_parsing_error_message_to_bot_owner(config: BotConfig, message: types.Message) -> None:
+    await bot.send_message(
         chat_id=config.BOT_OWNER_CHAT_ID,
         text=f"INCORRECT MESSAGE FROM @{message.from_user.username}: {message.text}",
     )
 
 
-def get_parsing_error_callbacks(config: BotConfig) -> list[Callable[[BotConfig, types.Message], None]]:
-    result: list[Callable[[BotConfig, types.Message], None]] = []
+async def get_parsing_error_callbacks(config: BotConfig) -> List[Callable[..., Coroutine[None, None, None]]]:
+    result: List[Callable[..., Coroutine[None, None, None]]] = []
     if config.IS_SEND_PARSING_ERROR_MESSAGES_TO_BOT_OWNER:
         result.append(send_parsing_error_message_to_bot_owner)
     return result
@@ -163,9 +163,10 @@ async def process_custom_command(
         msg_builder = get_locale_msg_builder(user_locale)
         await message.reply(msg_builder.parse_error_msg(cfg.BOT_OWNER_USERNAME), parse_mode="Markdown")
         logger.debug({"user_id": user_id, "command": text, "parsed": False})
-        for callback in get_parsing_error_callbacks(cfg):
+        callbacks = await get_parsing_error_callbacks(cfg)
+        for callback in callbacks:
             try:
-                callback(cfg, message)
+                await callback(cfg, message)
             except:
                 logger.error(f"Callback {callback.__name__} error")
 
