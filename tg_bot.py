@@ -124,7 +124,7 @@ async def process_start_command(message: types.Message) -> None:
 @msg_context(msg_type=MessageTypeEnum.TEXT)
 async def cmd_help(ctx: MessageContext) -> None:
     msg_builder = get_locale_msg_builder(ctx.user.locale)
-    await ctx.message.answer(msg_builder.help_msg())
+    await ctx.message.answer(msg_builder.help_msg(), reply_markup=KEYBOARD, parse_mode="Markdown")
 
 
 async def process_custom_command(
