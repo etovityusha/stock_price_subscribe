@@ -1,7 +1,6 @@
 import enum
 import logging
 from contextlib import contextmanager
-from functools import lru_cache
 from typing import Callable
 
 from aiogram import Bot, Dispatcher, types
@@ -78,7 +77,6 @@ def send_parsing_error_message_to_bot_owner(config: BotConfig, message: types.Me
     )
 
 
-@lru_cache
 def get_parsing_error_callbacks(config: BotConfig) -> list[Callable[[BotConfig, types.Message], None]]:
     result: list[Callable[[BotConfig, types.Message], None]] = []
     if config.IS_SEND_PARSING_ERROR_MESSAGES_TO_BOT_OWNER:
