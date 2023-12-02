@@ -45,6 +45,7 @@ class BotConfig(BaseSettings):
     TINKOFF_TOKEN: str
     BROKER_URL: str
     WEBAPP_PAGE_URL: str
+    LOGGING_LEVEL: str = "INFO"
 
     IS_SEND_PARSING_ERROR_MESSAGES_TO_BOT_OWNER: bool
 
@@ -57,6 +58,7 @@ cfg = BotConfig()
 TOKEN = cfg.BOT_TOKEN
 bot = Bot(token=TOKEN)
 logger = logging.getLogger(__name__)
+logger.setLevel(cfg.LOGGING_LEVEL)
 
 type_task_map = {
     CommandAddData: handle_add_cmd,
@@ -162,7 +164,7 @@ async def process_custom_command(
     except Exception:
         msg_builder = get_locale_msg_builder(user_locale)
         await message.reply(msg_builder.parse_error_msg(cfg.BOT_OWNER_USERNAME), parse_mode="Markdown")
-        logger.warning({"user_id": user_id, "command": text, "parsed": True})
+        logger.debug({"user_id": user_id, "command": text, "parsed": False})
         for callback in get_parsing_error_callbacks(cfg):
             try:
                 callback(cfg, message)
@@ -170,7 +172,7 @@ async def process_custom_command(
                 logger.error(f"Callback {callback.__name__} error")
 
         return
-    logger.info({"user_id": user_id, "command": text, "parsed": True})
+    logger.debug({"user_id": user_id, "command": text, "parsed": True})
     type_task[type(parser_result)].apply_async(
         kwargs={
             "user_id": user_id,
