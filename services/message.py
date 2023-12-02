@@ -59,6 +59,10 @@ class LocaleMessageBuilder(abc.ABC, Generic[L]):
     ) -> str:
         pass
 
+    @abc.abstractmethod
+    def instrument_not_found_error_msg(self) -> str:
+        pass
+
     @classmethod
     def format_price(cls, price: decimal.Decimal, precision: int = 2) -> str:
         rounding = "0." + "9" * precision
@@ -147,6 +151,12 @@ class RuLocaleMessageBuilder(LocaleMessageBuilder[LocaleEnum.RU]):
             f"{arrow_symbol} Сработала подписка на {self.format_price(sub_price, instrument_precision)}"
         )
 
+    def instrument_not_found_error_msg(self) -> str:
+        return (
+            "Инструмент не найден. Возможно, его еще нет в системе. "
+            "Попробуйте создать подписку на него - тогда мы попытаемся его найти."
+        )
+
 
 class EnLocaleMessageBuilder(LocaleMessageBuilder[LocaleEnum.EN]):
     def welcome_new_user_msg(self) -> str:
@@ -223,6 +233,12 @@ get command help
         return (
             f"The price of {instrument_ticker} is {self.format_price(current_price, instrument_precision)}\n"
             f"{arrow_symbol} Subscription triggered at {self.format_price(sub_price, instrument_precision)}"
+        )
+
+    def instrument_not_found_error_msg(self) -> str:
+        return (
+            "Instrument not found. Possibly it's not in the system yet. "
+            "Try creating a subscription for it - then we will try to find it."
         )
 
 

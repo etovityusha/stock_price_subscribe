@@ -198,12 +198,20 @@ def handle_delete_cmd(user_id: int, chat_id: int, message_id: int, **kwargs):
 def handle_price_cmd(user_id: int, chat_id: int, message_id: int, **kwargs):
     with session_factory(cfg.SQLALCHEMY_DATABASE_URI)() as session:
         svc = get_price_cmd_handler(session)
-        result = svc.handle(user_id, CommandPriceData.model_validate(kwargs))
         user: User = get_user_repo(session).get_by_id(user_id)
+        msg_builder = get_locale_msg_builder(user.locale)
+        try:
+            result = svc.handle(user_id, CommandPriceData.model_validate(kwargs))
+        except svc.InstrumentNotFoundError:
+            tg_client.send_message(
+                chat_id=chat_id,
+                reply_to_msg_id=message_id,
+                message=msg_builder.instrument_not_found_error_msg(),
+            )
         tg_client.send_message(
             chat_id=chat_id,
             reply_to_msg_id=message_id,
-            message=get_locale_msg_builder(user.locale).price_cmd_msg(result),
+            message=msg_builder.price_cmd_msg(result),
         )
 
 

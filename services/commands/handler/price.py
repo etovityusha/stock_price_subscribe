@@ -15,6 +15,9 @@ class PriceCommandResult(BaseModel):
 
 
 class PriceCommandHandler(abc.ABC):
+    class InstrumentNotFoundError(Exception):
+        pass
+
     @abc.abstractmethod
     def handle(self, user_id: int, data: CommandPriceData) -> PriceCommandResult:
         pass
@@ -31,6 +34,8 @@ class DefaultPriceCommandHandler(PriceCommandHandler):
 
     def handle(self, user_id: int, data: CommandPriceData) -> PriceCommandResult:
         instrument = self._instrument_repo.get_by_ticker(data.ticker)
+        if instrument is None:
+            raise self.InstrumentNotFoundError
         instrument_price = self._instrument_price_repo.get_by_instrument_id(instrument_id=instrument.identity)
         return PriceCommandResult(
             ticker=instrument_price.instrument.ticker,
