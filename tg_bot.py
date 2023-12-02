@@ -1,6 +1,8 @@
 import enum
 import logging
 from contextlib import contextmanager
+from functools import lru_cache
+from typing import Callable
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
@@ -39,9 +41,12 @@ class BotConfig(BaseSettings):
     SQLALCHEMY_DATABASE_URI: str
     BOT_TOKEN: str
     BOT_OWNER_USERNAME: str
+    BOT_OWNER_CHAT_ID: int
     TINKOFF_TOKEN: str
     BROKER_URL: str
     WEBAPP_PAGE_URL: str
+
+    IS_SEND_PARSING_ERROR_MESSAGES_TO_BOT_OWNER: bool
 
     class Config:
         env_file = ".env"
@@ -62,6 +67,21 @@ type_task_map = {
     CommandMyData: handle_my_cmd,
 }
 KEYBOARD = get_keyboard(web_app_url=cfg.WEBAPP_PAGE_URL)
+
+
+def send_parsing_error_message_to_bot_owner(config: BotConfig, message: types.Message) -> None:
+    bot.send_message(
+        chat_id=config.BOT_OWNER_CHAT_ID,
+        text=f"INCORRECT MESSAGE FROM @{message.from_user.username}: {message.text}",
+    )
+
+
+@lru_cache
+def get_parsing_error_callbacks(config: BotConfig) -> list[Callable[[BotConfig, types.Message], None]]:
+    result: list[Callable[[BotConfig, types.Message], None]] = []
+    if config.IS_SEND_PARSING_ERROR_MESSAGES_TO_BOT_OWNER:
+        result.append(send_parsing_error_message_to_bot_owner)
+    return result
 
 
 @contextmanager
@@ -142,6 +162,13 @@ async def process_custom_command(
     except Exception:
         msg_builder = get_locale_msg_builder(user_locale)
         await message.reply(msg_builder.parse_error_msg(cfg.BOT_OWNER_USERNAME), parse_mode="Markdown")
+        logger.warning({"user_id": user_id, "command": text, "parsed": True})
+        for callback in get_parsing_error_callbacks(cfg):
+            try:
+                callback(cfg, message)
+            except:
+                logger.error(f"Callback {callback.__name__} error")
+
         return
     logger.info({"user_id": user_id, "command": text, "parsed": True})
     type_task[type(parser_result)].apply_async(
