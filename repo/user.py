@@ -18,6 +18,10 @@ class UserRepo(GenericRepository[User], abc.ABC):
     def find_by_chat_id(self, chat_id: int) -> Sequence[User]:
         pass
 
+    @abc.abstractmethod
+    def get_by_username(self, username: str) -> User | None:
+        pass
+
 
 class UserAlchemyRepo(UserRepo, AlchemyGenericRepository[User]):
     def __init__(self, session: Session) -> None:
@@ -30,3 +34,7 @@ class UserAlchemyRepo(UserRepo, AlchemyGenericRepository[User]):
     def find_by_chat_id(self, chat_id: int) -> Sequence[User]:
         stmt = select(UserORM).where(UserORM.chat_id == chat_id)
         return [User.model_validate(x) for x in self._session.execute(stmt).scalars().all()]
+
+    def get_by_username(self, username: str) -> User | None:
+        stmt = select(UserORM).where(UserORM.username == username)
+        return User.model_validate(self._session.execute(stmt).scalars().first())

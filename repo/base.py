@@ -13,6 +13,10 @@ class GenericRepository(Generic[DomainModel], ABC):
     def get_by_id(self, id_: int) -> DomainModel | None:
         raise NotImplementedError
 
+    @abstractmethod
+    def find_all(self) -> list[DomainModel]:
+        pass
+
 
 class AlchemyGenericRepository(GenericRepository[DomainModel]):
     def __init__(
@@ -34,3 +38,11 @@ class AlchemyGenericRepository(GenericRepository[DomainModel]):
         if not result:
             return None
         return self._domain_model.model_validate(result[0])
+
+    def _construct_find_all_stmt(self) -> Select:
+        return select(self._orm_model)
+
+    def find_all(self) -> list[DomainModel]:
+        stmt = self._construct_find_all_stmt()
+        result = self._session.execute(stmt).scalars().all()
+        return [self._domain_model.model_validate(r) for r in result]
