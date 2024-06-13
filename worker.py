@@ -37,6 +37,8 @@ from services.subscriptions import DefaultSubscriptionsService
 from services.telegram import Telegram
 from services.uow import AlchemyUoW
 
+logger = logging.getLogger(__name__)
+
 
 class CeleryConfig(BaseSettings):
     SQLALCHEMY_DATABASE_URI: str
@@ -59,7 +61,7 @@ app.conf.beat_schedule = {
         "schedule": 10,
     },
 }
-app.conf.task_soft_time_limit = 15
+app.conf.task_soft_time_limit = 30
 app.conf.task_time_limit = 30
 
 tg_client = Telegram(bot_token=cfg.BOT_TOKEN)
@@ -80,16 +82,20 @@ def run_all_tickers_together():
         prices_svc = TinkoffPriceService(
             cfg.TINKOFF_TOKEN,
         )
+        logger.info("Get instrument prices")
         prices_data = prices_svc.get_prices(instruments=instruments)
+        logger.info("Instrument prices retrieved successfully")
         price_updater_svc = PriceUpdaterServiceImpl(
             uow=uow,
             instrument_prices_repo=InstrumentPriceAlchemyRepo(session),
         )
         prices = price_updater_svc.update_prices(prices_data)
+        logger.info("Prices in database updated successfully")
         subscriptions_svc = DefaultSubscriptionsService(
             uow=uow, subscription_repo=SubscriptionAlchemyRepo(session), user_repo=UserAlchemyRepo(session)
         )
         messages = subscriptions_svc.get_messages_and_update(prices=prices)
+        logger.info("The messages were built successfully", extra={"count": len(messages)})
         for msg in messages:
             send_message_to_tg.apply_async(
                 kwargs=dict(

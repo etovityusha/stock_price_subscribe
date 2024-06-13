@@ -1,3 +1,5 @@
+import logging
+
 from pydantic import BaseModel
 import abc
 import decimal
@@ -7,6 +9,8 @@ from models.domain.instument import Instrument
 from repo.instrument_price import InstrumentPriceRepo
 from services.price import InstrumentPriceResult
 from services.uow import UoW
+
+logger = logging.getLogger(__name__)
 
 
 class UpdatedPriceResult(BaseModel):
@@ -27,15 +31,16 @@ class PriceUpdaterServiceImpl(PriceUpdaterService):
         self.instrument_prices_repo = instrument_prices_repo
 
     def update_prices(self, data: list[InstrumentPriceResult]) -> list[UpdatedPriceResult]:
-        current_prices: list[InstrumentPrice] = self.instrument_prices_repo.find_by(
-            instrument_id_in=[row.instrument.identity for row in data]
-        )
+        logger.info("Starting the price update process.")
+        instrument_ids = [row.instrument.identity for row in data]
+        current_prices: list[InstrumentPrice] = self.instrument_prices_repo.find_by(instrument_id_in=instrument_ids)
+        logger.info("Fetched current prices from the repository.")
         current_prices_map: dict[int, decimal.Decimal] = {ip.instrument.identity: ip.price for ip in current_prices}
-        [
+
+        for row in data:
             self.instrument_prices_repo.create_or_update(instrument_id=row.instrument.identity, price=row.new_price)
-            for row in data
-        ]
-        return [
+
+        updated_prices = [
             UpdatedPriceResult(
                 instrument=row.instrument,
                 new_price=row.new_price,
@@ -43,3 +48,6 @@ class PriceUpdaterServiceImpl(PriceUpdaterService):
             )
             for row in data
         ]
+        logger.info("Price update process completed successfully.")
+
+        return updated_prices
