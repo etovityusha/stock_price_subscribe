@@ -62,8 +62,10 @@ app.conf.beat_schedule = {
         "schedule": 45,
     },
 }
-app.conf.task_soft_time_limit = 180
-app.conf.task_time_limit = 180
+app.conf.update(
+    task_soft_time_limit=180,
+    task_time_limit=180,
+)
 
 tg_client = Telegram(bot_token=cfg.BOT_TOKEN)
 loggger = logging.getLogger(__name__)
