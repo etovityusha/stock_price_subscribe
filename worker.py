@@ -59,11 +59,11 @@ app = Celery(__name__, broker=cfg.BROKER_URL)
 app.conf.beat_schedule = {
     "run_all_tickers_together": {
         "task": "run_all_tickers_together",
-        "schedule": 10,
+        "schedule": 45,
     },
 }
-app.conf.task_soft_time_limit = 30
-app.conf.task_time_limit = 30
+app.conf.task_soft_time_limit = 180
+app.conf.task_time_limit = 180
 
 tg_client = Telegram(bot_token=cfg.BOT_TOKEN)
 loggger = logging.getLogger(__name__)
