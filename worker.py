@@ -1,4 +1,3 @@
-import decimal
 import logging
 from typing import Callable, Type
 
@@ -36,7 +35,9 @@ from services.price_updater import PriceUpdaterServiceImpl
 from services.subscriptions import DefaultSubscriptionsService
 from services.telegram import Telegram
 from services.uow import AlchemyUoW
+from log import setup_logging
 
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
