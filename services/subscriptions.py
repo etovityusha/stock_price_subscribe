@@ -48,7 +48,7 @@ class DefaultSubscriptionsService(SubscriptionsService):
                 )
                 continue
 
-            logger.info(f"Processing subscriptions for instrument {row.instrument.identity}.")
+            logger.debug(f"Processing subscriptions for instrument {row.instrument.identity}.")
             subscriptions: list[Subscription] = self._subscription_repo.find_by(
                 instrument_id=row.instrument.identity,
                 price_gte=min_price,
