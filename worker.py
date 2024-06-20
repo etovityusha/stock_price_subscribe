@@ -72,8 +72,8 @@ loggger = logging.getLogger(__name__)
 
 
 @app.task(name="send_message_to_tg")
-def send_message_to_tg(chat_id: int, message: str) -> None:
-    tg_client.send_message(chat_id=chat_id, message=message)
+def send_message_to_tg(chat_id: int, message: str) -> bool:
+    return tg_client.send_message(chat_id=chat_id, message=message)
 
 
 @app.task(name="run_all_tickers_together")
