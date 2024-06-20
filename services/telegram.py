@@ -1,5 +1,8 @@
+import logging
+
 import requests
 
+logger = logging.getLogger(__name__)
 
 class Telegram:
     MAX_MESSAGE_LENGTH = 4096
@@ -25,6 +28,7 @@ class Telegram:
             try:
                 response = requests.get(url, timeout=5)
             except requests.exceptions.Timeout:
+                logger.warning("Telegram send message timeout")
                 return False
             responses_oks.append(response.json().get("ok", False))
         return all(responses_oks)

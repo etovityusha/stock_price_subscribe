@@ -196,7 +196,7 @@ def handle_delete_cmd(user_id: int, chat_id: int, message_id: int, **kwargs):
         svc = get_delete_cmd_handler(session)
         result = svc.handle(user_id, CommandDeleteData.model_validate(kwargs))
         user: User = get_user_repo(session).get_by_id(user_id)
-        tg_client.send_message(
+        return tg_client.send_message(
             chat_id=chat_id,
             reply_to_msg_id=message_id,
             message=get_locale_msg_builder(user.locale).delete_cmd_msg(result),
