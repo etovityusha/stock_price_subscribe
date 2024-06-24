@@ -89,4 +89,7 @@ class DefaultSubscriptionsService(SubscriptionsService):
 
         self._uow.commit()
         logger.info("Committing changes to the database.")
-        return [SubscriptionMessage(chat_id=c, message="\n\n".join(m)) for c, m in chat_id_messages.items()]
+        return [
+            SubscriptionMessage(user_chat_id=chat_id, message="\n\n".join(messages))
+            for chat_id, messages in chat_id_messages.items()
+        ]
