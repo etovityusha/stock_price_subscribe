@@ -16,6 +16,7 @@ class InstrumentTypeEnum(str, enum.Enum):
     BOND = "BOND"
     FUTURES = "FUTURES"
     CURRENCY = "CURRENCY"
+    ETF = "ETF"
 
 
 class CommandTypeEnum(str, enum.Enum):
