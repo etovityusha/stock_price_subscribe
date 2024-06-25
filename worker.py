@@ -59,12 +59,12 @@ app = Celery(__name__, broker=cfg.BROKER_URL)
 app.conf.beat_schedule = {
     "run_all_tickers_together": {
         "task": "run_all_tickers_together",
-        "schedule": 45,
+        "schedule": 15,
     },
 }
 app.conf.update(
-    task_soft_time_limit=180,
-    task_time_limit=180,
+    task_soft_time_limit=45,
+    task_time_limit=45,
 )
 
 tg_client = Telegram(bot_token=cfg.BOT_TOKEN)
@@ -95,7 +95,10 @@ def run_all_tickers_together():
         prices = price_updater_svc.update_prices(prices_data)
         logger.info("Prices in database updated successfully")
         subscriptions_svc = DefaultSubscriptionsService(
-            uow=uow, subscription_repo=SubscriptionAlchemyRepo(session), user_repo=UserAlchemyRepo(session)
+            uow=uow,
+            subscription_repo=SubscriptionAlchemyRepo(session),
+            user_repo=UserAlchemyRepo(session),
+            join_messages=False,
         )
         messages = subscriptions_svc.get_messages_and_update(prices=prices)
         logger.info("The messages were built successfully", extra={"count": len(messages)})

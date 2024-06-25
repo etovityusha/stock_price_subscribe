@@ -27,10 +27,11 @@ class SubscriptionsService(abc.ABC):
 
 
 class DefaultSubscriptionsService(SubscriptionsService):
-    def __init__(self, uow: UoW, subscription_repo: SubscriptionRepo, user_repo: UserRepo) -> None:
+    def __init__(self, uow: UoW, subscription_repo: SubscriptionRepo, user_repo: UserRepo, join_messages: bool) -> None:
         self._uow = uow
         self._subscription_repo = subscription_repo
         self._user_repo = user_repo
+        self._join_messages = join_messages
 
     def get_messages_and_update(self, prices: list[UpdatedPriceResult]) -> list[SubscriptionMessage]:
         logger.info("Starting get_messages_and_update method.")
@@ -89,7 +90,13 @@ class DefaultSubscriptionsService(SubscriptionsService):
 
         self._uow.commit()
         logger.info("Committing changes to the database.")
+        if self._join_messages:
+            return [
+                SubscriptionMessage(user_chat_id=chat_id, message="\n\n".join(messages))
+                for chat_id, messages in chat_id_messages.items()
+            ]
         return [
-            SubscriptionMessage(user_chat_id=chat_id, message="\n\n".join(messages))
+            SubscriptionMessage(user_chat_id=chat_id, message=message)
             for chat_id, messages in chat_id_messages.items()
+            for message in messages
         ]
