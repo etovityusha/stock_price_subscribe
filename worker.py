@@ -1,6 +1,10 @@
 import logging
+import time
+from functools import wraps
 from typing import Callable, Type
 
+import celery
+import redis
 from celery import Celery
 from pydantic_settings import BaseSettings
 from sqlalchemy.orm import Session
@@ -46,6 +50,9 @@ class CeleryConfig(BaseSettings):
     BROKER_URL: str
     TINKOFF_TOKEN: str
     BOT_TOKEN: str
+    REDIS_HOST: str
+    REDIS_PORT: int
+    REDIS_PASSWORD: str
 
     class Config:
         env_file = ".env"
@@ -53,6 +60,30 @@ class CeleryConfig(BaseSettings):
 
 
 cfg = CeleryConfig()
+redis_client = redis.Redis(host=cfg.REDIS_HOST, port=cfg.REDIS_PORT, db=0, password=cfg.REDIS_PASSWORD)
+
+
+def rate_limit_decorator(task: celery.Task) -> Callable:
+    @wraps(task)
+    def wrapper(*args, **kwargs):
+        chat_id = kwargs.get('chat_id')
+        if not chat_id:
+            chat_id = args[0]
+        key = f"last_sent:{chat_id}"
+
+        last_sent = redis_client.get(key)
+        while last_sent and time.time() - float(last_sent) < 1:
+            logger.warning(f"Rate limit exceeded for chat_id {chat_id}")
+            time.sleep(1)
+            last_sent = redis_client.get(key)
+
+        redis_client.set(key, time.time())
+        result = task(*args, **kwargs)
+        redis_client.set(key, time.time())
+        return result
+
+    return wrapper
+
 
 app = Celery(__name__, broker=cfg.BROKER_URL)
 
@@ -72,6 +103,7 @@ loggger = logging.getLogger(__name__)
 
 
 @app.task(name="send_message_to_tg")
+@rate_limit_decorator
 def send_message_to_tg(chat_id: int, message: str) -> bool:
     return tg_client.send_message(chat_id=chat_id, message=message)
 
@@ -168,12 +200,12 @@ def get_user_repo(session: Session) -> UserRepo:
 
 
 def handle_cmd(
-    get_cmd_handler: Callable,
-    user_id: int,
-    chat_id: int,
-    message_id: int,
-    command_model: Type[TickerCommandData],
-    **kwargs,
+        get_cmd_handler: Callable,
+        user_id: int,
+        chat_id: int,
+        message_id: int,
+        command_model: Type[TickerCommandData],
+        **kwargs,
 ) -> None:
     with session_factory(cfg.SQLALCHEMY_DATABASE_URI)() as session:
         svc = get_cmd_handler(session)

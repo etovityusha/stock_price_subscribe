@@ -30,6 +30,22 @@ services:
       - "${RABBITMQ_PORT}:${RABBITMQ_PORT}"
       - "${RABBITMQ_MANAGEMENT_PORT_NUMBER}:${RABBITMQ_MANAGEMENT_PORT_NUMBER}"
 
+  redis:
+    image: redis:6.2
+    env_file: .env
+    volumes:
+      - /var/lib/redis:/data
+    ports:
+      - '${REDIS_PORT}:${REDIS_PORT}'
+    command:
+      [
+        "redis-server",
+        "--appendonly", "yes",
+        "--dir", "/data",
+        "--dbfilename", "dump.rdb",
+        "--requirepass", "${REDIS_PASSWORD}"
+      ]
+
   migrator:
     build: .
     env_file: .env
