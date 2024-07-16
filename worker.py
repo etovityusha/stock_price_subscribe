@@ -121,10 +121,10 @@ def run_all_tickers_together():
         current_dt = datetime.datetime.now(tz=datetime.timezone.utc)
         for svc in prices_services:
             if not svc.from_utc_time() <= current_dt.time() <= svc.to_utc_time():
-                logger.info(f"Skip service {svc.__name__}: working hours")
+                logger.info(f"Skip service {type(svc).__name__}: working hours")
                 continue
             if current_dt.weekday() not in svc.weekdays():
-                logger.info(f"Skip service {svc.__name__}: weekday")
+                logger.info(f"Skip service {type(svc).__name__}: weekday")
                 continue
 
             logger.info("Get instrument prices")
