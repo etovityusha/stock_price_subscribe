@@ -1,4 +1,5 @@
 import abc
+import datetime
 import decimal
 from typing import Iterable
 
@@ -19,8 +20,35 @@ class PriceService(abc.ABC):
     def get_prices(self, instruments: Iterable[Instrument]) -> InstrumentPriceResult:
         pass
 
+    @classmethod
+    @abc.abstractmethod
+    def from_utc_time(cls) -> datetime.time:
+        pass
+
+    @classmethod
+    @abc.abstractmethod
+    def to_utc_time(cls) -> datetime.time:
+        pass
+
+    @classmethod
+    @abc.abstractmethod
+    def weekdays(cls) -> set[int]:
+        pass
+
 
 class TinkoffPriceService(PriceService):
+    @classmethod
+    def from_utc_time(cls) -> datetime.time:
+        return datetime.time(7)
+
+    @classmethod
+    def to_utc_time(cls) -> datetime.time:
+        return datetime.time(16)
+
+    @classmethod
+    def weekdays(cls) -> set[int]:
+        return {0, 1, 2, 3, 4}
+
     def __init__(self, token: str) -> None:
         self._token = token
         self._base_url = "https://invest-public-api.tinkoff.ru/rest/"

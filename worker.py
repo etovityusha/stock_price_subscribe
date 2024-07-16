@@ -1,3 +1,4 @@
+import datetime
 import logging
 import time
 from functools import wraps
@@ -66,7 +67,7 @@ redis_client = redis.Redis(host=cfg.REDIS_HOST, port=cfg.REDIS_PORT, db=0, passw
 def rate_limit_decorator(task: celery.Task) -> Callable:
     @wraps(task)
     def wrapper(*args, **kwargs):
-        chat_id = kwargs.get('chat_id')
+        chat_id = kwargs.get("chat_id")
         if not chat_id:
             chat_id = args[0]
         key = f"last_sent:{chat_id}"
@@ -114,33 +115,41 @@ def run_all_tickers_together():
         instrument_repo = InstrumentAlchemyRepo(session)
         instruments: list[Instrument] = instrument_repo.find_by()
         uow = AlchemyUoW(session)
-        prices_svc = TinkoffPriceService(
-            cfg.TINKOFF_TOKEN,
-        )
-        logger.info("Get instrument prices")
-        prices_data = prices_svc.get_prices(instruments=instruments)
-        logger.info("Instrument prices retrieved successfully")
-        price_updater_svc = PriceUpdaterServiceImpl(
-            uow=uow,
-            instrument_prices_repo=InstrumentPriceAlchemyRepo(session),
-        )
-        prices = price_updater_svc.update_prices(prices_data)
-        logger.info("Prices in database updated successfully")
-        subscriptions_svc = DefaultSubscriptionsService(
-            uow=uow,
-            subscription_repo=SubscriptionAlchemyRepo(session),
-            user_repo=UserAlchemyRepo(session),
-            join_messages=False,
-        )
-        messages = subscriptions_svc.get_messages_and_update(prices=prices)
-        logger.info("The messages were built successfully", extra={"count": len(messages)})
-        for msg in messages:
-            send_message_to_tg.apply_async(
-                kwargs=dict(
-                    chat_id=msg.user_chat_id,
-                    message=msg.message,
-                )
+        prices_services = [
+            TinkoffPriceService(cfg.TINKOFF_TOKEN),
+        ]
+        current_dt = datetime.datetime.now(tz=datetime.timezone.utc)
+        for svc in prices_services:
+            if not svc.from_utc_time() <= current_dt.time() <= svc.to_utc_time():
+                logger.info(f"Skip service {svc.__name__}: working hours")
+                continue
+            if current_dt.weekday() not in svc.weekdays():
+                logger.info(f"Skip service {svc.__name__}: weekday")
+                continue
+
+            logger.info("Get instrument prices")
+            prices_data = svc.get_prices(instruments=instruments)
+
+            price_updater_svc = PriceUpdaterServiceImpl(
+                uow=uow,
+                instrument_prices_repo=InstrumentPriceAlchemyRepo(session),
             )
+            prices = price_updater_svc.update_prices(prices_data)
+            subscriptions_svc = DefaultSubscriptionsService(
+                uow=uow,
+                subscription_repo=SubscriptionAlchemyRepo(session),
+                user_repo=UserAlchemyRepo(session),
+                join_messages=False,
+            )
+            messages = subscriptions_svc.get_messages_and_update(prices=prices)
+            logger.info("The messages were built successfully", extra={"count": len(messages)})
+            for msg in messages:
+                send_message_to_tg.apply_async(
+                    kwargs=dict(
+                        chat_id=msg.user_chat_id,
+                        message=msg.message,
+                    )
+                )
 
 
 def get_price_cmd_handler(session: Session) -> DefaultPriceCommandHandler:
@@ -200,12 +209,12 @@ def get_user_repo(session: Session) -> UserRepo:
 
 
 def handle_cmd(
-        get_cmd_handler: Callable,
-        user_id: int,
-        chat_id: int,
-        message_id: int,
-        command_model: Type[TickerCommandData],
-        **kwargs,
+    get_cmd_handler: Callable,
+    user_id: int,
+    chat_id: int,
+    message_id: int,
+    command_model: Type[TickerCommandData],
+    **kwargs,
 ) -> None:
     with session_factory(cfg.SQLALCHEMY_DATABASE_URI)() as session:
         svc = get_cmd_handler(session)
