@@ -12,8 +12,12 @@ services:
       - postgres_data:/var/lib/postgresql/data/
     ports:
       - "${POSTGRES_PORT}:${POSTGRES_PORT}"
+    command: [
+      "postgres",
+      "-c", "port=${POSTGRES_PORT}"
+    ]
     healthcheck:
-      test: [ "CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}" ]
+      test: [ "CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}", "-p", "${POSTGRES_PORT}" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -40,6 +44,7 @@ services:
     command:
       [
         "redis-server",
+        "--port", "${REDIS_PORT}",
         "--appendonly", "yes",
         "--dir", "/data",
         "--dbfilename", "dump.rdb",
