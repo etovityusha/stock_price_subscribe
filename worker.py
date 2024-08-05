@@ -54,6 +54,7 @@ class CeleryConfig(BaseSettings):
     REDIS_HOST: str
     REDIS_PORT: int
     REDIS_PASSWORD: str
+    MESSAGES_INTERVAL: float = 0.5
 
     class Config:
         env_file = ".env"
@@ -73,9 +74,9 @@ def rate_limit_decorator(task: celery.Task) -> Callable:
         key = f"last_sent:{chat_id}"
 
         last_sent = redis_client.get(key)
-        while last_sent and time.time() - float(last_sent) < 1:
+        while last_sent and time.time() - float(last_sent) < cfg.MESSAGES_INTERVAL:
             logger.warning(f"Rate limit exceeded for chat_id {chat_id}")
-            time.sleep(1)
+            time.sleep(cfg.MESSAGES_INTERVAL)
             last_sent = redis_client.get(key)
 
         redis_client.set(key, time.time())
